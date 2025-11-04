@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 
 const API_ENDPOINT = 'https://longevity-backend-07su.onrender.com/ask'
-
+                    
 function Chat () {
   const [messages, setMessages] = useState([
     {
@@ -106,9 +106,9 @@ function Chat () {
   }
 
   return (
-    <div className="w-full max-w-4xl h-[calc(100vh-200px)] flex flex-col bg-white rounded-lg shadow-lg border border-gray-200">
+    <div className="w-full max-w-4xl h-[calc(100vh-200px)] flex flex-col bg-slate-800 rounded-lg shadow-lg border border-slate-700">
       {/* Area messaggi */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -117,19 +117,19 @@ function Chat () {
             <div
               className={`max-w-[80%] rounded-lg px-4 py-2 ${
                 message.sender === 'user'
-                  ? 'bg-green-100 text-gray-800'
-                  : 'bg-gray-200 text-gray-800'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-700 text-gray-100'
               }`}
             >
               {message.sender === 'ai' ? (
-                <div className="text-sm leading-relaxed">
+                <div className="text-sm leading-relaxed text-gray-100">
                   <ReactMarkdown
                     components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                      ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
-                      li: ({ children }) => <li className="ml-2">{children}</li>
+                      p: ({ children }) => <p className="mb-2 last:mb-0 text-gray-100">{children}</p>,
+                      strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                      ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 text-gray-100">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-gray-100">{children}</ol>,
+                      li: ({ children }) => <li className="ml-2 text-gray-100">{children}</li>
                     }}
                   >
                     {message.text}
@@ -145,7 +145,7 @@ function Chat () {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 p-4 bg-white rounded-b-lg">
+      <div className="border-t border-slate-700 p-4 bg-slate-800 rounded-b-lg">
         <div className="flex gap-2">
           <input
             type="text"
@@ -154,12 +154,12 @@ function Chat () {
             onKeyPress={handleKeyPress}
             placeholder="Scrivi un messaggio..."
             disabled={isLoading}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-600 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSend}
             disabled={!inputValue.trim() || isLoading}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-slate-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Invio...' : 'Invia'}
           </button>
