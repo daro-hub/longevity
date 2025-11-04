@@ -25,7 +25,7 @@ export default function RootLayout ({ children }) {
                 height={32}
                 className="rounded"
               />
-              <h1 className="text-2xl font-semibold text-white">
+              <h1 className="text-2xl font-semibold bg-gradient-to-r from-purple-500 to-blue-500 bg-clip-text text-transparent">
                 Longevity
               </h1>
             </div>
