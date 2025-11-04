@@ -122,19 +122,30 @@ function Chat () {
               }`}
             >
               {message.sender === 'ai' ? (
-                <div className="text-sm leading-relaxed text-gray-100">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0 text-gray-100">{children}</p>,
-                      strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                      ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 text-gray-100">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-gray-100">{children}</ol>,
-                      li: ({ children }) => <li className="ml-2 text-gray-100">{children}</li>
-                    }}
-                  >
-                    {message.text}
-                  </ReactMarkdown>
-                </div>
+                message.isLoading ? (
+                  <div className="flex items-center gap-1 text-sm text-gray-100">
+                    <span>Sto pensando</span>
+                    <span className="flex items-center gap-1 ml-1">
+                      <span className="typing-dot"></span>
+                      <span className="typing-dot"></span>
+                      <span className="typing-dot"></span>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-sm leading-relaxed text-gray-100">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0 text-gray-100">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 text-gray-100">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-gray-100">{children}</ol>,
+                        li: ({ children }) => <li className="ml-2 text-gray-100">{children}</li>
+                      }}
+                    >
+                      {message.text}
+                    </ReactMarkdown>
+                  </div>
+                )
               ) : (
                 <p className="text-sm leading-relaxed">{message.text}</p>
               )}
