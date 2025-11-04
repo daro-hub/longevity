@@ -27,8 +27,7 @@ const DATA_COLLECTION_QUESTIONS = [
     type: 'buttons',
     options: [
       { label: 'Maschio', value: 'male' },
-      { label: 'Femmina', value: 'female' },
-      { label: 'Preferisco non rispondere', value: 'other' }
+      { label: 'Femmina', value: 'female' }
     ]
   },
   {
@@ -46,25 +45,20 @@ const DATA_COLLECTION_QUESTIONS = [
   {
     id: 'activity',
     text: 'Quanto sei attivo fisicamente?',
-    type: 'buttons',
-    options: [
-      { label: 'Sedentario', value: 'sedentary' },
-      { label: 'Leggermente attivo', value: 'light' },
-      { label: 'Moderatamente attivo', value: 'moderate' },
-      { label: 'Molto attivo', value: 'very_active' },
-      { label: 'Estremamente attivo', value: 'extra_active' }
-    ]
+    type: 'text',
+    placeholder: 'Descrivi il tuo livello di attività fisica'
   },
   {
     id: 'goal',
     text: 'Qual è il tuo obiettivo principale?',
-    type: 'buttons',
-    options: [
-      { label: 'Perdere peso', value: 'lose_weight' },
-      { label: 'Aumentare peso', value: 'gain_weight' },
-      { label: 'Mantenere peso', value: 'maintain_weight' },
-      { label: 'Migliorare la salute', value: 'improve_health' }
-    ]
+    type: 'text',
+    placeholder: 'Descrivi il tuo obiettivo principale'
+  },
+  {
+    id: 'dietary_preferences',
+    text: 'Hai preferenze alimentari o allergie?',
+    type: 'text',
+    placeholder: 'Es. vegetariano, vegano, intollerante al lattosio, allergico alle noci... (lascia vuoto se non hai preferenze)'
   }
 ]
                     
@@ -102,12 +96,14 @@ function Chat () {
 
   // Gestisce la risposta durante la fase di introduzione
   const handleIntroductionResponse = (value) => {
-    const userMessage = {
-      id: messages.length + 1,
-      text: value === 'yes' ? 'Sì' : 'No, ho altre domande',
-      sender: 'user'
-    }
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => {
+      const userMessage = {
+        id: prev.length + 1,
+        text: value === 'yes' ? 'Sì' : 'No, ho altre domande',
+        sender: 'user'
+      }
+      return [...prev, userMessage]
+    })
 
     if (value === 'yes') {
       setPhase(CHAT_PHASES.DATA_COLLECTION)
@@ -222,13 +218,15 @@ function Chat () {
     setPhase(CHAT_PHASES.REVIEW)
     
     // Crea il messaggio di riepilogo
-    const reviewMessage = {
-      id: messages.length + 1,
-      text: 'Perfetto! Ecco un riepilogo delle informazioni che ho raccolto:',
-      sender: 'ai',
-      isReview: true
-    }
-    setMessages(prev => [...prev, reviewMessage])
+    setMessages(prev => {
+      const reviewMessage = {
+        id: prev.length + 1,
+        text: 'Perfetto! Ecco un riepilogo delle informazioni che ho raccolto:',
+        sender: 'ai',
+        isReview: true
+      }
+      return [...prev, reviewMessage]
+    })
   }
 
   // Gestisce la modifica di un campo nel riepilogo
@@ -258,14 +256,16 @@ function Chat () {
 
   // Completa la raccolta dati e invia all'endpoint RAG
   const completeDataCollection = async () => {
-    const data = collectedData
+    const collectedDataToSend = collectedData
     
-    const completionMessage = {
-      id: messages.length + 1,
-      text: 'Perfetto! Ho raccolto tutte le informazioni necessarie. Ora creerò la tua dieta personalizzata...',
-      sender: 'ai'
-    }
-    setMessages(prev => [...prev, completionMessage])
+    setMessages(prev => {
+      const completionMessage = {
+        id: prev.length + 1,
+        text: 'Perfetto! Ho raccolto tutte le informazioni necessarie. Ora creerò la tua dieta personalizzata...',
+        sender: 'ai'
+      }
+      return [...prev, completionMessage]
+    })
     setIsLoading(true)
 
     try {
@@ -279,75 +279,65 @@ function Chat () {
         return genderMap[value] || value
       }
 
-      const mapActivityLevel = (value) => {
-        const activityMap = {
-          'sedentary': 'sedentario',
-          'light': 'leggero',
-          'moderate': 'moderato',
-          'very_active': 'molto attivo',
-          'extra_active': 'estremamente attivo'
-        }
-        return activityMap[value] || value
-      }
-
-      const mapGoal = (value) => {
-        const goalMap = {
-          'lose_weight': 'perdita peso',
-          'gain_weight': 'aumento peso',
-          'maintain_weight': 'mantenimento peso',
-          'improve_health': 'miglioramento salute'
-        }
-        return goalMap[value] || value
-      }
-
       // Costruisce l'oggetto user_data
+      // Per activity, goal e dietary_preferences, usa direttamente il testo inserito dall'utente (non più mapping)
       const userData = {
-        age: parseInt(data.age) || null,
-        weight: parseFloat(data.weight) || null,
-        height: parseInt(data.height) || null,
-        gender: data.gender ? mapGender(data.gender) : null,
-        activity_level: data.activity ? mapActivityLevel(data.activity) : null,
-        goal: data.goal ? mapGoal(data.goal) : null
+        age: parseInt(collectedDataToSend.age) || null,
+        weight: parseFloat(collectedDataToSend.weight) || null,
+        height: parseInt(collectedDataToSend.height) || null,
+        gender: collectedDataToSend.gender ? mapGender(collectedDataToSend.gender) : null,
+        activity_level: collectedDataToSend.activity || null,
+        goal: collectedDataToSend.goal || null,
+        dietary_preferences: collectedDataToSend.dietary_preferences || null
       }
 
       // Prepara la question
       const question = 'Crea una dieta personalizzata basata su queste informazioni. Fornisci una dieta completa e dettagliata.'
+
+      const payload = {
+        question: question,
+        user_data: userData
+      }
+
+      // Stampa il payload a console
+      console.log('Payload inviato all\'endpoint:', JSON.stringify(payload, null, 2))
 
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          question: question,
-          user_data: userData
-        })
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         throw new Error(`Errore: ${response.status}`)
       }
 
-      const data = await response.json()
+      const responseData = await response.json()
 
       // Aggiunge la risposta della dieta
-      const dietMessage = {
-        id: messages.length + 2,
-        text: data.answer,
-        sender: 'ai'
-      }
-      setMessages(prev => [...prev, dietMessage])
+      setMessages(prev => {
+        const dietMessage = {
+          id: prev.length + 1,
+          text: responseData.answer,
+          sender: 'ai'
+        }
+        return [...prev, dietMessage]
+      })
 
       // Passa alla fase di chat normale
       setPhase(CHAT_PHASES.CHAT)
     } catch (error) {
       console.error('Errore nella richiesta:', error)
-      const errorMessage = {
-        id: messages.length + 2,
-        text: 'Mi dispiace, si è verificato un errore durante la generazione della dieta. Riprova più tardi.',
-        sender: 'ai'
-      }
-      setMessages(prev => [...prev, errorMessage])
+      setMessages(prev => {
+        const errorMessage = {
+          id: prev.length + 1,
+          text: 'Mi dispiace, si è verificato un errore durante la generazione della dieta. Riprova più tardi.',
+          sender: 'ai'
+        }
+        return [...prev, errorMessage]
+      })
       setPhase(CHAT_PHASES.CHAT)
     } finally {
       setIsLoading(false)
@@ -375,30 +365,71 @@ function Chat () {
   }
 
   const handleSend = async () => {
+    // Se siamo in fase DATA_COLLECTION e c'è una domanda di tipo text, gestisci la risposta
+    if (phase === CHAT_PHASES.DATA_COLLECTION && inputValue.trim()) {
+      const lastAIQuestion = messages
+        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+        .pop()
+      
+      if (lastAIQuestion && lastAIQuestion.questionId && lastAIQuestion.questionType === 'text') {
+        // Per dietary_preferences, accetta anche risposta vuota
+        const value = inputValue.trim()
+        setInputValue('')
+        const finalValue = value || ''
+        handleDataCollectionResponse(
+          lastAIQuestion.questionId,
+          finalValue,
+          finalValue || '(nessuna preferenza)'
+        )
+        return
+      }
+    }
+    
+    // Se siamo in fase DATA_COLLECTION e la risposta è vuota, controlla se è per dietary_preferences
+    if (phase === CHAT_PHASES.DATA_COLLECTION && !inputValue.trim()) {
+      const lastAIQuestion = messages
+        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+        .pop()
+      
+      if (lastAIQuestion && lastAIQuestion.questionId === 'dietary_preferences') {
+        // Permetti risposta vuota per dietary_preferences
+        setInputValue('')
+        handleDataCollectionResponse(
+          lastAIQuestion.questionId,
+          '',
+          '(nessuna preferenza)'
+        )
+        return
+      }
+    }
+    
     // handleSend funziona solo nella fase CHAT
     if (phase !== CHAT_PHASES.CHAT) return
     if (!inputValue.trim() || isLoading) return
 
     const questionText = inputValue.trim()
 
-    const userMessage = {
-      id: messages.length + 1,
-      text: questionText,
-      sender: 'user'
-    }
-
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => {
+      const userMessage = {
+        id: prev.length + 1,
+        text: questionText,
+        sender: 'user'
+      }
+      return [...prev, userMessage]
+    })
     setInputValue('')
     setIsLoading(true)
 
     // Mostra un messaggio di loading
-    const loadingMessage = {
-      id: messages.length + 2,
-      text: 'Sto pensando...',
-      sender: 'ai',
-      isLoading: true
-    }
-    setMessages(prev => [...prev, loadingMessage])
+    setMessages(prev => {
+      const loadingMessage = {
+        id: prev.length + 1,
+        text: 'Sto pensando...',
+        sender: 'ai',
+        isLoading: true
+      }
+      return [...prev, loadingMessage]
+    })
 
     try {
       const response = await fetch(API_ENDPOINT, {
@@ -529,11 +560,17 @@ function Chat () {
                         <div className="space-y-3">
                           {DATA_COLLECTION_QUESTIONS.map((question) => {
                             const value = collectedData[question.id]
-                            if (!value) return null
+                            // Per dietary_preferences, mostra anche se è vuoto (con messaggio)
+                            if (value === undefined || (value === '' && question.id !== 'dietary_preferences')) return null
                             
-                            const displayValue = question.options
-                              ? question.options.find(opt => opt.value === value)?.label || value
-                              : value
+                            // Per campi di tipo text, mostra direttamente il valore
+                            // Per campi con options (bottoni), mostra il label
+                            // Per campi numerici, mostra il valore
+                            const displayValue = question.type === 'text' 
+                              ? (value || '(nessuna preferenza)')
+                              : question.options
+                                ? question.options.find(opt => opt.value === value)?.label || value
+                                : value
                             
                             return (
                               <div key={question.id} className="flex items-center justify-between gap-3 p-2 bg-slate-600 rounded">
@@ -553,6 +590,20 @@ function Chat () {
                                             }
                                           }}
                                           className="w-20 px-2 py-1 bg-slate-700 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                          autoFocus
+                                        />
+                                      ) : question.type === 'text' ? (
+                                        <input
+                                          type="text"
+                                          value={editValue}
+                                          onChange={(e) => setEditValue(e.target.value)}
+                                          onKeyPress={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                              e.preventDefault()
+                                              handleSaveEdit(question.id)
+                                            }
+                                          }}
+                                          className="flex-1 px-2 py-1 bg-slate-700 border border-slate-500 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                                           autoFocus
                                         />
                                       ) : question.options ? (
@@ -690,16 +741,16 @@ function Chat () {
               
               {/* Pulsante di conferma riepilogo */}
               {message.isReview && index === messages.length - 1 && (
-                <div className="flex justify-end mt-4 mb-4">
-                  <div className="max-w-[80%]">
-                    <button
-                      onClick={() => completeDataCollection()}
-                      disabled={isLoading}
-                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
+                <div className="flex justify-center mt-4 mb-4">
+                  <button
+                    onClick={() => completeDataCollection()}
+                    disabled={isLoading}
+                    className="relative px-8 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all confirm-button-border"
+                  >
+                    <span className="relative z-10">
                       {isLoading ? 'Generazione...' : 'Conferma e genera la dieta'}
-                    </button>
-                  </div>
+                    </span>
+                  </button>
                 </div>
               )}
             </div>
@@ -708,28 +759,65 @@ function Chat () {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area - solo nella fase CHAT */}
-      {phase === CHAT_PHASES.CHAT && (
-      <div className="border-t border-slate-700 p-4 bg-slate-800 rounded-b-lg">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Scrivi un messaggio..."
-            disabled={isLoading}
-            className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-600 disabled:cursor-not-allowed"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!inputValue.trim() || isLoading}
+      {/* Input area - solo in fase CHAT o quando c'è una domanda di tipo text da rispondere */}
+      {(() => {
+        // Mostra la barra di input se siamo in fase CHAT
+        if (phase === CHAT_PHASES.CHAT) {
+          return true
+        }
+        
+        // Mostra la barra di input se siamo in fase DATA_COLLECTION e c'è una domanda di tipo text non risposta
+        if (phase === CHAT_PHASES.DATA_COLLECTION) {
+          const lastAIQuestion = messages
+            .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+            .pop()
+          return lastAIQuestion?.questionType === 'text'
+        }
+        
+        return false
+      })() && (
+        <div className="border-t border-slate-700 p-4 bg-slate-800 rounded-b-lg">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={
+                phase === CHAT_PHASES.DATA_COLLECTION
+                  ? (() => {
+                      const lastAIQuestion = messages
+                        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+                        .pop()
+                      return lastAIQuestion?.questionType === 'text'
+                        ? lastAIQuestion.text
+                        : 'Scrivi un messaggio...'
+                    })()
+                  : 'Scrivi un messaggio...'
+              }
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-slate-600 disabled:cursor-not-allowed"
+            />
+            <button
+              onClick={handleSend}
+              disabled={
+                isLoading || 
+                (phase === CHAT_PHASES.DATA_COLLECTION
+                  ? (() => {
+                      const lastAIQuestion = messages
+                        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+                        .pop()
+                      // Permetti invio vuoto solo per dietary_preferences
+                      return !inputValue.trim() && lastAIQuestion?.questionId !== 'dietary_preferences'
+                    })()
+                  : !inputValue.trim())
+              }
               className="px-6 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-blue-600 disabled:bg-slate-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-all"
-          >
-            {isLoading ? 'Invio...' : 'Invia'}
-          </button>
+            >
+              {isLoading ? 'Invio...' : 'Invia'}
+            </button>
+          </div>
         </div>
-      </div>
       )}
     </div>
   )
