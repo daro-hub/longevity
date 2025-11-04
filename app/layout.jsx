@@ -1,7 +1,7 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Nutrizionista AI',
+  title: 'Longevity',
   description: 'Chat con la tua nutrizionista AI'
 }
 
@@ -12,7 +12,7 @@ export default function RootLayout ({ children }) {
         <nav className="bg-white shadow-sm border-b border-gray-200">
           <div className="max-w-4xl mx-auto px-4 py-4">
             <h1 className="text-2xl font-semibold text-gray-800">
-              Nutrizionista AI
+              Longevity
             </h1>
           </div>
         </nav>

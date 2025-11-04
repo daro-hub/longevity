@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 
+const API_ENDPOINT = 'https://longevity-backend-07su.onrender.com/ask'
+
 function Chat () {
   const [messages, setMessages] = useState([
     {
@@ -11,6 +13,7 @@ function Chat () {
     }
   ])
   const [inputValue, setInputValue] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -21,27 +24,77 @@ function Chat () {
     scrollToBottom()
   }, [messages])
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return
+  const handleSend = async () => {
+    if (!inputValue.trim() || isLoading) return
+
+    const questionText = inputValue.trim()
 
     const userMessage = {
       id: messages.length + 1,
-      text: inputValue,
+      text: questionText,
       sender: 'user'
     }
 
     setMessages(prev => [...prev, userMessage])
     setInputValue('')
+    setIsLoading(true)
 
-    // Simula risposta AI dopo un breve delay
-    setTimeout(() => {
-      const aiMessage = {
-        id: messages.length + 2,
-        text: 'Certo! Ti aiuto subito 😊',
-        sender: 'ai'
+    // Mostra un messaggio di loading
+    const loadingMessage = {
+      id: messages.length + 2,
+      text: 'Sto pensando...',
+      sender: 'ai',
+      isLoading: true
+    }
+    setMessages(prev => [...prev, loadingMessage])
+
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          question: questionText
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Errore: ${response.status}`)
       }
-      setMessages(prev => [...prev, aiMessage])
-    }, 500)
+
+      const data = await response.json()
+
+      // Rimuove il messaggio di loading e aggiunge la risposta
+      setMessages(prev => {
+        const withoutLoading = prev.filter(msg => !msg.isLoading)
+        return [
+          ...withoutLoading,
+          {
+            id: withoutLoading.length + 1,
+            text: data.answer,
+            sender: 'ai'
+          }
+        ]
+      })
+    } catch (error) {
+      console.error('Errore nella richiesta:', error)
+      
+      // Rimuove il messaggio di loading e aggiunge un messaggio di errore
+      setMessages(prev => {
+        const withoutLoading = prev.filter(msg => !msg.isLoading)
+        return [
+          ...withoutLoading,
+          {
+            id: withoutLoading.length + 1,
+            text: 'Mi dispiace, si è verificato un errore. Riprova più tardi.',
+            sender: 'ai'
+          }
+        ]
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleKeyPress = (e) => {
@@ -83,14 +136,15 @@ function Chat () {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Scrivi un messaggio..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            disabled={isLoading}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSend}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || isLoading}
             className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
-            Invia
+            {isLoading ? 'Invio...' : 'Invia'}
           </button>
         </div>
       </div>
