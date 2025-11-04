@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 const API_ENDPOINT = 'https://longevity-backend-07su.onrender.com/ask'
 
@@ -120,7 +121,23 @@ function Chat () {
                   : 'bg-gray-200 text-gray-800'
               }`}
             >
-              <p className="text-sm leading-relaxed">{message.text}</p>
+              {message.sender === 'ai' ? (
+                <div className="text-sm leading-relaxed">
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                      ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
+                      li: ({ children }) => <li className="ml-2">{children}</li>
+                    }}
+                  >
+                    {message.text}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-sm leading-relaxed">{message.text}</p>
+              )}
             </div>
           </div>
         ))}
