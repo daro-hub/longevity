@@ -1,12 +1,13 @@
 {
-  "name": "wellneai",
+  "name": "longevity",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "^14.0.4",
@@ -15,8 +16,14 @@
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.16",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
     "postcss": "^8.4.32",
-    "tailwindcss": "^3.4.0"
+    "tailwindcss": "^3.4.0",
+    "typescript": "^6.0.3"
   }
 }

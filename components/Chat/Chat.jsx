@@ -2,8 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import TargetsCard from './TargetsCard'
 
-const API_ENDPOINT = 'https://longevity-backend-07su.onrender.com/ask'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://longevity-backend-07su.onrender.com'
+const API_ENDPOINT = `${API_BASE_URL}/ask`
+const TARGETS_ENDPOINT = `${API_BASE_URL}/v1/targets`
                     
 // Fasi della chat
 const CHAT_PHASES = {
@@ -45,14 +49,27 @@ const DATA_COLLECTION_QUESTIONS = [
   {
     id: 'activity',
     text: 'Quanto sei attivo fisicamente?',
-    type: 'text',
-    placeholder: 'Descrivi il tuo livello di attività fisica'
+    type: 'buttons',
+    // Values match app.domain.enums.ActivityLevel in longevity-backend exactly —
+    // the engine maps these 1:1 to a PAL multiplier, so this can't be free text.
+    options: [
+      { label: 'Sedentario (poco o nessun esercizio)', value: 'sedentary' },
+      { label: 'Leggero (1-3 giorni/settimana)', value: 'light' },
+      { label: 'Moderato (3-5 giorni/settimana)', value: 'moderate' },
+      { label: 'Attivo (6-7 giorni/settimana)', value: 'active' },
+      { label: 'Molto attivo (allenamenti intensi quotidiani)', value: 'very_active' }
+    ]
   },
   {
     id: 'goal',
     text: 'Qual è il tuo obiettivo principale?',
-    type: 'text',
-    placeholder: 'Descrivi il tuo obiettivo principale'
+    type: 'buttons',
+    // Values match app.domain.enums.Goal in longevity-backend exactly.
+    options: [
+      { label: 'Perdere peso', value: 'lose_weight' },
+      { label: 'Mantenere il peso', value: 'maintain' },
+      { label: 'Aumentare la massa muscolare', value: 'gain_muscle' }
+    ]
   },
   {
     id: 'dietary_preferences',
@@ -254,22 +271,93 @@ function Chat () {
     setEditValue('')
   }
 
-  // Completa la raccolta dati e invia all'endpoint RAG
+  // Chiama il motore deterministico (/v1/targets) e mostra BMI/TDEE/macro
+  // reali PRIMA di chiedere al modello di comporre una dieta in prosa.
+  // Se il profilo viene rifiutato (minorenne, BMI critico, condizione
+  // segnalata...) mostra il motivo e non genera alcun piano automatico.
+  const fetchAndShowTargets = async (collectedDataToSend) => {
+    const profile = {
+      age_years: parseInt(collectedDataToSend.age, 10),
+      sex: collectedDataToSend.gender,
+      height_cm: parseFloat(collectedDataToSend.height),
+      weight_kg: parseFloat(collectedDataToSend.weight),
+      activity_level: collectedDataToSend.activity,
+      goal: collectedDataToSend.goal,
+      // Best-effort: non c'è ancora un campo "condizioni di salute" dedicato,
+      // quindi il testo delle preferenze alimentari passa anche al
+      // guardrail dell'engine (screening a parole chiave, non una garanzia).
+      health_notes: collectedDataToSend.dietary_preferences || '',
+      locale: 'it'
+    }
+
+    try {
+      const response = await fetch(TARGETS_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile)
+      })
+      if (!response.ok) {
+        throw new Error(`Errore targets: ${response.status}`)
+      }
+      const data = await response.json()
+
+      setMessages(prev => {
+        const targetsMessage = {
+          id: prev.length + 1,
+          sender: 'ai',
+          isTargetsCard: true,
+          targetsData: data
+        }
+        return [...prev, targetsMessage]
+      })
+
+      return data
+    } catch (error) {
+      console.error('Errore nel calcolo dei target nutrizionali:', error)
+      // Il motore deterministico è un valore aggiunto, non un requisito:
+      // se non risponde, si prosegue comunque con la generazione della dieta.
+      return null
+    }
+  }
+
+  // Completa la raccolta dati: prima calcola i target reali, poi (se il
+  // profilo non è stato rifiutato) chiede al modello una dieta in prosa.
   const completeDataCollection = async () => {
     const collectedDataToSend = collectedData
-    
+
     setMessages(prev => {
       const completionMessage = {
         id: prev.length + 1,
-        text: 'Perfetto! Ho raccolto tutte le informazioni necessarie. Ora creerò la tua dieta personalizzata...',
+        text: 'Perfetto! Ho raccolto tutte le informazioni necessarie. Calcolo i tuoi valori nutrizionali...',
         sender: 'ai'
       }
       return [...prev, completionMessage]
     })
     setIsLoading(true)
 
+    const targetsResult = await fetchAndShowTargets(collectedDataToSend)
+
+    if (targetsResult && targetsResult.refused) {
+      // Il motore ha rifiutato il profilo: mostra il motivo e il
+      // disclaimer, ma non generare un piano automatico.
+      setMessages(prev => {
+        const refusalMessage = {
+          id: prev.length + 1,
+          sender: 'ai',
+          text:
+            (targetsResult.violations || []).map(v => v.message).join(' ') ||
+            'Non posso generare un piano automatico per questo profilo.'
+        }
+        return [...prev, refusalMessage]
+      })
+      setIsLoading(false)
+      setPhase(CHAT_PHASES.CHAT)
+      return
+    }
+
     try {
-      // Mappa i valori per user_data
+      // Mappa i valori per user_data (il campo `gender` di /ask è testo
+      // libero per il prompt, diverso dall'enum `sex` usato da /v1/targets)
       const mapGender = (value) => {
         const genderMap = {
           'male': 'maschio',
@@ -279,8 +367,6 @@ function Chat () {
         return genderMap[value] || value
       }
 
-      // Costruisce l'oggetto user_data
-      // Per activity, goal e dietary_preferences, usa direttamente il testo inserito dall'utente (non più mapping)
       const userData = {
         age: parseInt(collectedDataToSend.age) || null,
         weight: parseFloat(collectedDataToSend.weight) || null,
@@ -291,16 +377,12 @@ function Chat () {
         dietary_preferences: collectedDataToSend.dietary_preferences || null
       }
 
-      // Prepara la question
       const question = 'Crea una dieta personalizzata basata su queste informazioni. Fornisci una dieta completa e dettagliata.'
 
       const payload = {
         question: question,
         user_data: userData
       }
-
-      // Stampa il payload a console
-      console.log('Payload inviato all\'endpoint:', JSON.stringify(payload, null, 2))
 
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
@@ -554,6 +636,8 @@ function Chat () {
                       <span className="typing-dot"></span>
                     </span>
                   </div>
+                    ) : message.isTargetsCard ? (
+                      <TargetsCard data={message.targetsData} />
                     ) : message.isReview ? (
                       <div className="text-sm leading-relaxed text-gray-100">
                         <p className="mb-4">{message.text}</p>

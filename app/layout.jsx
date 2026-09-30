@@ -1,14 +1,39 @@
 import './globals.css'
 import Image from 'next/image'
 
+const SITE_URL = 'https://longevity-alpha.vercel.app'
+const DESCRIPTION =
+  'Chat con la tua nutrizionista AI: target nutrizionali calcolati da un motore deterministico e testato, risposte fondate su fonti scientifiche.'
+
 export const metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'Longevity',
-  description: 'Chat con la tua nutrizionista AI',
+  description: DESCRIPTION,
   icons: {
-    icon: '/longevity.png',
-    shortcut: '/longevity.png',
-    apple: '/longevity.png'
+    icon: '/favicon-64.png',
+    shortcut: '/favicon-64.png',
+    apple: '/favicon-64.png'
+  },
+  openGraph: {
+    title: 'Longevity',
+    description: DESCRIPTION,
+    url: SITE_URL,
+    siteName: 'Longevity',
+    images: ['/longevity.png'],
+    locale: 'it_IT',
+    type: 'website'
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Longevity',
+    description: DESCRIPTION,
+    images: ['/longevity.png']
   }
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1
 }
 
 export default function RootLayout ({ children }) {
@@ -36,4 +61,3 @@ export default function RootLayout ({ children }) {
     </html>
   )
 }
-
