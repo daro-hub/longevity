@@ -94,10 +94,33 @@ function Chat () {
   const [isProcessingResponse, setIsProcessingResponse] = useState(false)
   const messagesEndRef = useRef(null)
 
+  // Contatore monotono per gli id dei messaggi. Il bug precedente
+  // (`id: prev.length + 1`) collideva ogni volta che un messaggio veniva
+  // rimosso dall'array (es. il filtro dei messaggi di loading): l'id
+  // successivo combaciava con uno già esistente, causando chiavi React
+  // duplicate e — peggio — i widget di risposta potevano comparire sotto
+  // la bolla sbagliata (showInputs confronta message.id === lastAIQuestion.id).
+  // Un ref (non state) perché è solo un contatore opaco: non deve
+  // provocare un re-render, e non deve azzerarsi tra un render e l'altro.
+  const nextIdRef = useRef(1)
+  const nextId = () => nextIdRef.current++
+
+  // Verifica se una domanda ha già una risposta salvata. Basato sulla
+  // PRESENZA della chiave (hasOwnProperty), non sulla verità del valore:
+  // `dietary_preferences` può essere salvato come stringa vuota '' (bug
+  // precedente: `!collectedData[id]` trattava '' e 0 come "non risposto"
+  // anche quando lo erano, lasciando il composer/i bottoni di input
+  // montati su una domanda già risposta). Ogni punto del componente che
+  // deve sapere se una domanda ha risposta passa da qui.
+  const isAnswered = (questionId) => {
+    if (!questionId) return false
+    return Object.prototype.hasOwnProperty.call(collectedData, questionId)
+  }
+
   // Inizializzazione con messaggio di presentazione
   useEffect(() => {
     const introMessage = {
-      id: 1,
+      id: nextId(),
       text: 'Ciao! Sono la tua nutrizionista AI. Prima di iniziare a creare la tua dieta personalizzata, ho bisogno di raccogliere alcune informazioni su di te. Questo processo richiederà solo pochi minuti e mi permetterà di fornirti consigli nutrizionali su misura per le tue esigenze. Sei pronto?',
       sender: 'ai'
     }
@@ -117,7 +140,7 @@ function Chat () {
   const handleIntroductionResponse = (value) => {
     setMessages(prev => {
       const userMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: value === 'yes' ? 'Sì' : 'No, ho altre domande',
         sender: 'user'
       }
@@ -159,7 +182,7 @@ function Chat () {
       }
       
       const questionMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: question.text,
         sender: 'ai',
         questionId: question.id,
@@ -198,16 +221,25 @@ function Chat () {
       }
       
       const userMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: displayText || value.toString(),
-        sender: 'user'
+        sender: 'user',
+        // Collega la bolla alla domanda cui risponde, così una modifica
+        // successiva nel riepilogo (handleSaveEdit) può ritrovarla e
+        // aggiornarla — prima non esisteva alcun legame tra i due, ed
+        // era per questo che una modifica cambiava il riepilogo ma non
+        // la trascrizione sopra.
+        answersQuestionId: questionId
       }
       return [...prev, userMessage]
     })
 
-    // Salva la risposta
+    // Salva la risposta. Anche qui per presenza, non per verità del
+    // valore: altrimenti una risposta vuota legittima (dietary_preferences)
+    // non verrebbe considerata "già salvata" e potrebbe essere sovrascritta
+    // da una chiamata duplicata.
     setCollectedData(prev => {
-      if (prev[questionId]) {
+      if (Object.prototype.hasOwnProperty.call(prev, questionId)) {
         // La risposta è già stata salvata
         return prev
       }
@@ -239,7 +271,7 @@ function Chat () {
     // Crea il messaggio di riepilogo
     setMessages(prev => {
       const reviewMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: 'Perfetto! Ecco un riepilogo delle informazioni che ho raccolto:',
         sender: 'ai',
         isReview: true
@@ -254,21 +286,32 @@ function Chat () {
     setEditValue(currentValue)
   }
 
-  // Salva la modifica di un campo
+  // Salva la modifica di un campo. Aggiorna sia collectedData (il valore
+  // usato nella richiesta) sia la bolla della trascrizione (displayText):
+  // prima si aggiornava solo collectedData, lasciando la trascrizione con
+  // il vecchio valore mentre il riepilogo sotto mostrava quello nuovo.
   const handleSaveEdit = (fieldId) => {
     const question = DATA_COLLECTION_QUESTIONS.find(q => q.id === fieldId)
     let displayText = editValue
-    
+
     if (question && question.options) {
       const option = question.options.find(opt => opt.value === editValue)
       displayText = option ? option.label : editValue
+    } else if (fieldId === 'dietary_preferences' && !editValue) {
+      displayText = '(nessuna preferenza)'
     }
-    
+
     setCollectedData(prev => ({
       ...prev,
       [fieldId]: editValue
     }))
-    
+
+    setMessages(prev => prev.map(m =>
+      m.sender === 'user' && m.answersQuestionId === fieldId
+        ? { ...m, text: displayText, edited: true }
+        : m
+    ))
+
     setEditingField(null)
     setEditValue('')
   }
@@ -305,7 +348,7 @@ function Chat () {
 
       setMessages(prev => {
         const targetsMessage = {
-          id: prev.length + 1,
+          id: nextId(),
           sender: 'ai',
           isTargetsCard: true,
           targetsData: data
@@ -329,7 +372,7 @@ function Chat () {
 
     setMessages(prev => {
       const completionMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: 'Perfetto! Ho raccolto tutte le informazioni necessarie. Calcolo i tuoi valori nutrizionali...',
         sender: 'ai'
       }
@@ -344,7 +387,7 @@ function Chat () {
       // disclaimer, ma non generare un piano automatico.
       setMessages(prev => {
         const refusalMessage = {
-          id: prev.length + 1,
+          id: nextId(),
           sender: 'ai',
           text:
             (targetsResult.violations || []).map(v => v.message).join(' ') ||
@@ -389,7 +432,7 @@ function Chat () {
 
       setMessages(prev => {
         const planMessage = {
-          id: prev.length + 1,
+          id: nextId(),
           sender: 'ai',
           isPlanCard: true,
           planStatus: planData.plan_status,
@@ -404,7 +447,7 @@ function Chat () {
       console.error('Errore nella richiesta:', error)
       setMessages(prev => {
         const errorMessage = {
-          id: prev.length + 1,
+          id: nextId(),
           text: 'Mi dispiace, si è verificato un errore durante la generazione del piano. Riprova più tardi.',
           sender: 'ai'
         }
@@ -422,10 +465,10 @@ function Chat () {
 
     // Trova l'ultima domanda AI non risposta usando lo stato corrente
     const lastAIQuestion = messages
-      .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+      .filter(msg => msg.sender === 'ai' && msg.questionId && !isAnswered(msg.questionId))
       .pop()
     
-    if (lastAIQuestion && lastAIQuestion.questionId && !collectedData[lastAIQuestion.questionId]) {
+    if (lastAIQuestion && lastAIQuestion.questionId && !isAnswered(lastAIQuestion.questionId)) {
       const value = numberInputValue.trim()
       setNumberInputValue('')
       handleDataCollectionResponse(
@@ -440,7 +483,7 @@ function Chat () {
     // Se siamo in fase DATA_COLLECTION e c'è una domanda di tipo text, gestisci la risposta
     if (phase === CHAT_PHASES.DATA_COLLECTION && inputValue.trim()) {
       const lastAIQuestion = messages
-        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+        .filter(msg => msg.sender === 'ai' && msg.questionId && !isAnswered(msg.questionId))
         .pop()
       
       if (lastAIQuestion && lastAIQuestion.questionId && lastAIQuestion.questionType === 'text') {
@@ -460,7 +503,7 @@ function Chat () {
     // Se siamo in fase DATA_COLLECTION e la risposta è vuota, controlla se è per dietary_preferences
     if (phase === CHAT_PHASES.DATA_COLLECTION && !inputValue.trim()) {
       const lastAIQuestion = messages
-        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+        .filter(msg => msg.sender === 'ai' && msg.questionId && !isAnswered(msg.questionId))
         .pop()
       
       if (lastAIQuestion && lastAIQuestion.questionId === 'dietary_preferences') {
@@ -483,7 +526,7 @@ function Chat () {
 
     setMessages(prev => {
       const userMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: questionText,
         sender: 'user'
       }
@@ -495,7 +538,7 @@ function Chat () {
     // Mostra un messaggio di loading
     setMessages(prev => {
       const loadingMessage = {
-        id: prev.length + 1,
+        id: nextId(),
         text: 'Sto pensando...',
         sender: 'ai',
         isLoading: true
@@ -526,7 +569,7 @@ function Chat () {
         return [
           ...withoutLoading,
           {
-            id: withoutLoading.length + 1,
+            id: nextId(),
             text: data.answer,
             sender: 'ai'
           }
@@ -541,7 +584,7 @@ function Chat () {
         return [
           ...withoutLoading,
           {
-            id: withoutLoading.length + 1,
+            id: nextId(),
             text: 'Mi dispiace, si è verificato un errore. Riprova più tardi.',
             sender: 'ai'
           }
@@ -581,12 +624,6 @@ function Chat () {
     ? DATA_COLLECTION_QUESTIONS.find(q => q.id === lastAIQuestion.questionId)
     : null
 
-  // Verifica se l'ultima domanda è stata già risposta
-  const isQuestionAnswered = (questionId) => {
-    if (!questionId) return false
-    return collectedData.hasOwnProperty(questionId)
-  }
-
   return (
     <div className="w-full max-w-4xl h-[calc(100vh-200px)] flex flex-col bg-slate-800 rounded-lg shadow-lg border border-slate-700">
       {/* Area messaggi */}
@@ -602,7 +639,7 @@ function Chat () {
                            message.id === lastAIQuestion.id && 
                            (phase === CHAT_PHASES.INTRODUCTION || 
                             (phase === CHAT_PHASES.DATA_COLLECTION && 
-                             !isQuestionAnswered(message.questionId)))
+                             !isAnswered(message.questionId)))
 
           return (
             <div key={message.id}>
@@ -746,7 +783,10 @@ function Chat () {
                   </div>
                 )
               ) : (
-                <p className="text-sm leading-relaxed">{message.text}</p>
+                <p className="text-sm leading-relaxed">
+                  {message.text}
+                  {message.edited && <span className="text-xs text-blue-200 opacity-75 ml-1">(modificato)</span>}
+                </p>
               )}
             </div>
           </div>
@@ -845,7 +885,7 @@ function Chat () {
         // Mostra la barra di input se siamo in fase DATA_COLLECTION e c'è una domanda di tipo text non risposta
         if (phase === CHAT_PHASES.DATA_COLLECTION) {
           const lastAIQuestion = messages
-            .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+            .filter(msg => msg.sender === 'ai' && msg.questionId && !isAnswered(msg.questionId))
             .pop()
           return lastAIQuestion?.questionType === 'text'
         }
@@ -863,7 +903,7 @@ function Chat () {
                 phase === CHAT_PHASES.DATA_COLLECTION
                   ? (() => {
                       const lastAIQuestion = messages
-                        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+                        .filter(msg => msg.sender === 'ai' && msg.questionId && !isAnswered(msg.questionId))
                         .pop()
                       return lastAIQuestion?.questionType === 'text'
                         ? lastAIQuestion.text
@@ -881,7 +921,7 @@ function Chat () {
                 (phase === CHAT_PHASES.DATA_COLLECTION
                   ? (() => {
                       const lastAIQuestion = messages
-                        .filter(msg => msg.sender === 'ai' && msg.questionId && !collectedData[msg.questionId])
+                        .filter(msg => msg.sender === 'ai' && msg.questionId && !isAnswered(msg.questionId))
                         .pop()
                       // Permetti invio vuoto solo per dietary_preferences
                       return !inputValue.trim() && lastAIQuestion?.questionId !== 'dietary_preferences'
