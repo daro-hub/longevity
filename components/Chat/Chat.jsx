@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import TargetsCard from './TargetsCard'
+import PlanCard from './PlanCard'
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || 'https://longevity-backend-07su.onrender.com'
 const API_ENDPOINT = `${API_BASE_URL}/ask`
 const TARGETS_ENDPOINT = `${API_BASE_URL}/v1/targets`
+const PLAN_ENDPOINT = `${API_BASE_URL}/v1/plan`
                     
 // Fasi della chat
 const CHAT_PHASES = {
@@ -356,56 +358,44 @@ function Chat () {
     }
 
     try {
-      // Mappa i valori per user_data (il campo `gender` di /ask è testo
-      // libero per il prompt, diverso dall'enum `sex` usato da /v1/targets)
-      const mapGender = (value) => {
-        const genderMap = {
-          'male': 'maschio',
-          'female': 'femmina',
-          'other': 'altro'
-        }
-        return genderMap[value] || value
+      // Stesso profilo enum-based di /v1/targets, più i tag da escludere
+      // dal catalogo (filtrati server-side, mai delegati a un'istruzione
+      // di prompt: un alimento escluso non è nemmeno proponibile al modello).
+      const planPayload = {
+        age_years: parseInt(collectedDataToSend.age, 10),
+        sex: collectedDataToSend.gender,
+        height_cm: parseFloat(collectedDataToSend.height),
+        weight_kg: parseFloat(collectedDataToSend.weight),
+        activity_level: collectedDataToSend.activity,
+        goal: collectedDataToSend.goal,
+        health_notes: collectedDataToSend.dietary_preferences || '',
+        locale: 'it',
+        excluded_tags: []
       }
 
-      const userData = {
-        age: parseInt(collectedDataToSend.age) || null,
-        weight: parseFloat(collectedDataToSend.weight) || null,
-        height: parseInt(collectedDataToSend.height) || null,
-        gender: collectedDataToSend.gender ? mapGender(collectedDataToSend.gender) : null,
-        activity_level: collectedDataToSend.activity || null,
-        goal: collectedDataToSend.goal || null,
-        dietary_preferences: collectedDataToSend.dietary_preferences || null
-      }
-
-      const question = 'Crea una dieta personalizzata basata su queste informazioni. Fornisci una dieta completa e dettagliata.'
-
-      const payload = {
-        question: question,
-        user_data: userData
-      }
-
-      const response = await fetch(API_ENDPOINT, {
+      const response = await fetch(PLAN_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(planPayload)
       })
 
       if (!response.ok) {
         throw new Error(`Errore: ${response.status}`)
       }
 
-      const responseData = await response.json()
+      const planData = await response.json()
 
-      // Aggiunge la risposta della dieta
       setMessages(prev => {
-        const dietMessage = {
+        const planMessage = {
           id: prev.length + 1,
-          text: responseData.answer,
-          sender: 'ai'
+          sender: 'ai',
+          isPlanCard: true,
+          planStatus: planData.plan_status,
+          plan: planData.plan
         }
-        return [...prev, dietMessage]
+        return [...prev, planMessage]
       })
 
       // Passa alla fase di chat normale
@@ -415,7 +405,7 @@ function Chat () {
       setMessages(prev => {
         const errorMessage = {
           id: prev.length + 1,
-          text: 'Mi dispiace, si è verificato un errore durante la generazione della dieta. Riprova più tardi.',
+          text: 'Mi dispiace, si è verificato un errore durante la generazione del piano. Riprova più tardi.',
           sender: 'ai'
         }
         return [...prev, errorMessage]
@@ -638,6 +628,8 @@ function Chat () {
                   </div>
                     ) : message.isTargetsCard ? (
                       <TargetsCard data={message.targetsData} />
+                    ) : message.isPlanCard ? (
+                      <PlanCard planStatus={message.planStatus} plan={message.plan} />
                     ) : message.isReview ? (
                       <div className="text-sm leading-relaxed text-gray-100">
                         <p className="mb-4">{message.text}</p>
