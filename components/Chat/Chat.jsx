@@ -7,7 +7,10 @@ import PlanCard from './PlanCard'
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || 'https://longevity-backend-07su.onrender.com'
-const API_ENDPOINT = `${API_BASE_URL}/ask`
+// /v1/ask, non il legacy /ask: ha una soglia di rilevanza (sotto soglia,
+// risposta "non lo so" deterministica senza nemmeno chiamare il modello)
+// e citazioni numerate strutturate invece di una risposta non verificabile.
+const API_ENDPOINT = `${API_BASE_URL}/v1/ask`
 const TARGETS_ENDPOINT = `${API_BASE_URL}/v1/targets`
 const PLAN_ENDPOINT = `${API_BASE_URL}/v1/plan`
 // /v1/plan/edit, /v1/plan/chat e /v1/plan/alternatives sono usati solo da
@@ -558,7 +561,8 @@ function Chat () {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          question: questionText
+          question: questionText,
+          locale: 'it'
         })
       })
 
@@ -568,7 +572,10 @@ function Chat () {
 
       const data = await response.json()
 
-      // Rimuove il messaggio di loading e aggiunge la risposta
+      // Rimuove il messaggio di loading e aggiunge la risposta, con le
+      // citazioni strutturate (/v1/ask le restituisce come array, non
+      // incorporate nel testo) così il componente di rendering può
+      // mostrarle sotto la risposta.
       setMessages(prev => {
         const withoutLoading = prev.filter(msg => !msg.isLoading)
         return [
@@ -576,7 +583,9 @@ function Chat () {
           {
             id: nextId(),
             text: data.answer,
-            sender: 'ai'
+            sender: 'ai',
+            citations: data.citations,
+            grounded: data.grounded
           }
         ]
       })
@@ -801,6 +810,17 @@ function Chat () {
                     >
                       {message.text}
                     </ReactMarkdown>
+                    {message.citations && message.citations.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-slate-600 space-y-1">
+                        <p className="text-xs font-medium text-gray-400">Fonti</p>
+                        {message.citations.map((c) => (
+                          <p key={c.n} className="text-xs text-gray-400">
+                            [{c.n}] {c.title || c.doc_id || 'Fonte'}
+                            {c.page && c.page !== 'None' ? `, p. ${c.page}` : ''}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               ) : (
