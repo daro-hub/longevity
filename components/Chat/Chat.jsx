@@ -10,6 +10,26 @@ const API_BASE_URL =
 const API_ENDPOINT = `${API_BASE_URL}/ask`
 const TARGETS_ENDPOINT = `${API_BASE_URL}/v1/targets`
 const PLAN_ENDPOINT = `${API_BASE_URL}/v1/plan`
+// /v1/plan/edit, /v1/plan/chat e /v1/plan/alternatives sono usati solo da
+// PlanCard.jsx (che li definisce localmente), non da questo componente.
+
+// Stesso profilo enum-based usato da /v1/targets, /v1/plan, /v1/plan/edit e
+// /v1/plan/chat — un'unica funzione pura così le quattro chiamate non
+// rischiano di disallinearsi silenziosamente.
+function buildProfilePayload (collectedData, extra = {}) {
+  return {
+    age_years: parseInt(collectedData.age, 10),
+    sex: collectedData.gender,
+    height_cm: parseFloat(collectedData.height),
+    weight_kg: parseFloat(collectedData.weight),
+    activity_level: collectedData.activity,
+    goal: collectedData.goal,
+    health_notes: collectedData.dietary_preferences || '',
+    locale: 'it',
+    excluded_tags: [],
+    ...extra
+  }
+}
                     
 // Fasi della chat
 const CHAT_PHASES = {
@@ -321,19 +341,10 @@ function Chat () {
   // Se il profilo viene rifiutato (minorenne, BMI critico, condizione
   // segnalata...) mostra il motivo e non genera alcun piano automatico.
   const fetchAndShowTargets = async (collectedDataToSend) => {
-    const profile = {
-      age_years: parseInt(collectedDataToSend.age, 10),
-      sex: collectedDataToSend.gender,
-      height_cm: parseFloat(collectedDataToSend.height),
-      weight_kg: parseFloat(collectedDataToSend.weight),
-      activity_level: collectedDataToSend.activity,
-      goal: collectedDataToSend.goal,
-      // Best-effort: non c'è ancora un campo "condizioni di salute" dedicato,
-      // quindi il testo delle preferenze alimentari passa anche al
-      // guardrail dell'engine (screening a parole chiave, non una garanzia).
-      health_notes: collectedDataToSend.dietary_preferences || '',
-      locale: 'it'
-    }
+    // Best-effort: non c'è ancora un campo "condizioni di salute" dedicato,
+    // quindi il testo delle preferenze alimentari passa anche al
+    // guardrail dell'engine (screening a parole chiave, non una garanzia).
+    const profile = buildProfilePayload(collectedDataToSend)
 
     try {
       const response = await fetch(TARGETS_ENDPOINT, {
@@ -401,20 +412,10 @@ function Chat () {
     }
 
     try {
-      // Stesso profilo enum-based di /v1/targets, più i tag da escludere
-      // dal catalogo (filtrati server-side, mai delegati a un'istruzione
-      // di prompt: un alimento escluso non è nemmeno proponibile al modello).
-      const planPayload = {
-        age_years: parseInt(collectedDataToSend.age, 10),
-        sex: collectedDataToSend.gender,
-        height_cm: parseFloat(collectedDataToSend.height),
-        weight_kg: parseFloat(collectedDataToSend.weight),
-        activity_level: collectedDataToSend.activity,
-        goal: collectedDataToSend.goal,
-        health_notes: collectedDataToSend.dietary_preferences || '',
-        locale: 'it',
-        excluded_tags: []
-      }
+      // Tag da escludere dal catalogo filtrati server-side, mai delegati
+      // a un'istruzione di prompt: un alimento escluso non è nemmeno
+      // proponibile al modello.
+      const planPayload = buildProfilePayload(collectedDataToSend)
 
       const response = await fetch(PLAN_ENDPOINT, {
         method: 'POST',
@@ -436,7 +437,11 @@ function Chat () {
           sender: 'ai',
           isPlanCard: true,
           planStatus: planData.plan_status,
-          plan: planData.plan
+          plan: planData.plan,
+          // Il profilo va rimandato intatto a ogni successiva chiamata di
+          // modifica (/v1/plan/edit, /v1/plan/chat): quelle route
+          // ricalcolano i target da zero e non hanno altro modo per saperli.
+          profile: planPayload
         }
         return [...prev, planMessage]
       })
@@ -595,6 +600,16 @@ function Chat () {
     }
   }
 
+  // La PlanCard chiama questo dopo ogni modifica riuscita (scambio
+  // ingrediente, rigenerazione pasto/giorno/tutto, chat libera): aggiorna
+  // in-place il messaggio del piano invece di aggiungerne uno nuovo, così
+  // la trascrizione non si riempie di una copia del piano a ogni modifica.
+  const handlePlanUpdated = (messageId, newPlan, newPlanStatus) => {
+    setMessages(prev => prev.map(m =>
+      m.id === messageId ? { ...m, plan: newPlan, planStatus: newPlanStatus } : m
+    ))
+  }
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -666,7 +681,13 @@ function Chat () {
                     ) : message.isTargetsCard ? (
                       <TargetsCard data={message.targetsData} />
                     ) : message.isPlanCard ? (
-                      <PlanCard planStatus={message.planStatus} plan={message.plan} />
+                      <PlanCard
+                        planStatus={message.planStatus}
+                        plan={message.plan}
+                        profile={message.profile}
+                        onPlanUpdated={(newPlan, newPlanStatus) =>
+                          handlePlanUpdated(message.id, newPlan, newPlanStatus)}
+                      />
                     ) : message.isReview ? (
                       <div className="text-sm leading-relaxed text-gray-100">
                         <p className="mb-4">{message.text}</p>
