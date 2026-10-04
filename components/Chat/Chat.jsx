@@ -4,12 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import TargetsCard from './TargetsCard'
 import PlanCard from './PlanCard'
-import { ASK_ENDPOINT, fetchPlan, fetchTargets } from '../../lib/api-client'
-
-// /v1/ask resta sul backend Python esterno (bloccato su una connessione
-// Supabase reale, non ancora pronta); targets/plan ora girano in locale
-// via le API routes di questo stesso progetto -- vedi lib/api-client.js.
-const API_ENDPOINT = ASK_ENDPOINT
+import { fetchAsk, fetchPlan, fetchTargets } from '../../lib/api-client'
 
 // Stesso profilo enum-based usato da /v1/targets, /v1/plan, /v1/plan/edit e
 // /v1/plan/chat — un'unica funzione pura così le quattro chiamate non
@@ -530,25 +525,10 @@ function Chat () {
     })
 
     try {
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          question: questionText,
-          locale: 'it'
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error(`Errore: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = await fetchAsk({ question: questionText, locale: 'it' })
 
       // Rimuove il messaggio di loading e aggiunge la risposta, con le
-      // citazioni strutturate (/v1/ask le restituisce come array, non
+      // citazioni strutturate (/api/ask le restituisce come array, non
       // incorporate nel testo) così il componente di rendering può
       // mostrarle sotto la risposta.
       setMessages(prev => {

@@ -15,9 +15,12 @@
   "dependencies": {
     "next": "^14.0.4",
     "openai": "^7.27.0",
+    "pg": "^8.23.1",
+    "pgvector": "^0.3.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
+    "unpdf": "^1.8.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

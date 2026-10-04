@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { DISCLAIMER, GUARDRAIL_MESSAGES, guardrailMessage } from '../../lib/domain/messages.js'
+import { DISCLAIMER, GUARDRAIL_MESSAGES, NOT_IN_SOURCES, guardrailMessage } from '../../lib/domain/messages.js'
 
-// Ported from tests/domain/test_messages.py. NOT_IN_SOURCES is deliberately
-// not ported (RAG-only, out of scope for this port).
+// Ported from tests/domain/test_messages.py.
 
 it('disclaimer has both locales and is nonempty', () => {
   expect(DISCLAIMER.it).toBeTruthy()
   expect(DISCLAIMER.en).toBeTruthy()
+})
+
+it('not-in-sources has both locales', () => {
+  expect(NOT_IN_SOURCES.it).toBeTruthy()
+  expect(NOT_IN_SOURCES.en).toBeTruthy()
 })
 
 it('every guardrail message has both locales', () => {

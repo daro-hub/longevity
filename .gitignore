@@ -25,6 +25,10 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# RAG corpus source PDFs -- only data/manifest.json (citation metadata)
+# is tracked, not the documents themselves (same as longevity-backend).
+/data/corpus/
+
 # vercel
 .vercel
 
