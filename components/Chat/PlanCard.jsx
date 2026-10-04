@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { fetchPlanAlternatives, fetchPlanChat, fetchPlanEdit } from '../../lib/api-client'
 
 // Il piano alimentare generato da /v1/plan, con la possibilità di
 // modificarlo: scambiare un ingrediente (con alternative proposte senza
@@ -9,12 +10,6 @@ import { useState } from 'react'
 // naturale. Ogni modifica, qualunque sia la via con cui arriva, passa
 // dalla stessa pipeline di validazione del piano iniziale: nessuna
 // scorciatoia rende una modifica meno verificata di una generazione.
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://longevity-backend-07su.onrender.com'
-const PLAN_EDIT_ENDPOINT = `${API_BASE_URL}/v1/plan/edit`
-const PLAN_CHAT_ENDPOINT = `${API_BASE_URL}/v1/plan/chat`
-const PLAN_ALTERNATIVES_ENDPOINT = `${API_BASE_URL}/v1/plan/alternatives`
 
 const SLOT_LABELS = {
   breakfast: 'Colazione',
@@ -46,21 +41,11 @@ export default function PlanCard ({ planStatus, plan, profile, onPlanUpdated }) 
 
   const banner = STATUS_BANNER[planStatus]
 
-  const postJson = async (url, body) => {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    if (!response.ok) throw new Error(`Errore: ${response.status}`)
-    return response.json()
-  }
-
   const runEdit = async (actionKey, scope, instruction) => {
     if (!profile || loadingAction) return
     setLoadingAction(actionKey)
     try {
-      const data = await postJson(PLAN_EDIT_ENDPOINT, { ...profile, plan, scope, instruction })
+      const data = await fetchPlanEdit({ ...profile, plan, scope, instruction })
       if (data.plan) onPlanUpdated(data.plan, data.plan_status)
     } catch (error) {
       console.error('Errore nella modifica del piano:', error)
@@ -95,7 +80,7 @@ export default function PlanCard ({ planStatus, plan, profile, onPlanUpdated }) 
     setOpenAlternativesFor({ dayIdx, mealIdx, itemIdx, foodKey })
     setLoadingAction(key)
     try {
-      const data = await postJson(PLAN_ALTERNATIVES_ENDPOINT, { food_key: foodKey, n: 3 })
+      const data = await fetchPlanAlternatives({ food_key: foodKey, n: 3 })
       setAlternatives(data.alternatives || [])
     } catch (error) {
       console.error('Errore nel recupero delle alternative:', error)
@@ -111,7 +96,7 @@ export default function PlanCard ({ planStatus, plan, profile, onPlanUpdated }) 
     setLoadingAction('chat')
     setChatReply('')
     try {
-      const data = await postJson(PLAN_CHAT_ENDPOINT, { ...profile, plan, message })
+      const data = await fetchPlanChat({ ...profile, plan, message })
       setChatReply(data.reply || '')
       if (data.plan) onPlanUpdated(data.plan, data.plan_status)
       setChatInput('')

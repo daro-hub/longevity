@@ -4,17 +4,12 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import TargetsCard from './TargetsCard'
 import PlanCard from './PlanCard'
+import { ASK_ENDPOINT, fetchPlan, fetchTargets } from '../../lib/api-client'
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://longevity-backend-07su.onrender.com'
-// /v1/ask, non il legacy /ask: ha una soglia di rilevanza (sotto soglia,
-// risposta "non lo so" deterministica senza nemmeno chiamare il modello)
-// e citazioni numerate strutturate invece di una risposta non verificabile.
-const API_ENDPOINT = `${API_BASE_URL}/v1/ask`
-const TARGETS_ENDPOINT = `${API_BASE_URL}/v1/targets`
-const PLAN_ENDPOINT = `${API_BASE_URL}/v1/plan`
-// /v1/plan/edit, /v1/plan/chat e /v1/plan/alternatives sono usati solo da
-// PlanCard.jsx (che li definisce localmente), non da questo componente.
+// /v1/ask resta sul backend Python esterno (bloccato su una connessione
+// Supabase reale, non ancora pronta); targets/plan ora girano in locale
+// via le API routes di questo stesso progetto -- vedi lib/api-client.js.
+const API_ENDPOINT = ASK_ENDPOINT
 
 // Stesso profilo enum-based usato da /v1/targets, /v1/plan, /v1/plan/edit e
 // /v1/plan/chat — un'unica funzione pura così le quattro chiamate non
@@ -350,15 +345,7 @@ function Chat () {
     const profile = buildProfilePayload(collectedDataToSend)
 
     try {
-      const response = await fetch(TARGETS_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      })
-      if (!response.ok) {
-        throw new Error(`Errore targets: ${response.status}`)
-      }
-      const data = await response.json()
+      const data = await fetchTargets(profile)
 
       setMessages(prev => {
         const targetsMessage = {
@@ -420,19 +407,7 @@ function Chat () {
       // proponibile al modello.
       const planPayload = buildProfilePayload(collectedDataToSend)
 
-      const response = await fetch(PLAN_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(planPayload)
-      })
-
-      if (!response.ok) {
-        throw new Error(`Errore: ${response.status}`)
-      }
-
-      const planData = await response.json()
+      const planData = await fetchPlan(planPayload)
 
       setMessages(prev => {
         const planMessage = {
