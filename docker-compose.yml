@@ -1,0 +1,8 @@
+# docker compose up --build   ->  http://localhost:3000
+# Copy .env.example to .env.local and fill it in first (OpenAI key + Supabase connection string).
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env.local
